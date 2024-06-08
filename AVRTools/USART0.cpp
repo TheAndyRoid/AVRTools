@@ -34,11 +34,11 @@
 
 
 #ifndef USART0_RX_BUFFER_SIZE
-#define USART0_RX_BUFFER_SIZE   32
+#define USART0_RX_BUFFER_SIZE   64
 #endif
 
 #ifndef USART0_TX_BUFFER_SIZE
-#define USART0_TX_BUFFER_SIZE   64
+#define USART0_TX_BUFFER_SIZE   128
 #endif
 
 
@@ -80,6 +80,10 @@ ISR( USART_RX_vect )
     // Eitherway, we need to read UDR register to clear the interrupt
     if ( !( UCSR0A & (1<<UPE0) ) )
     {
+      if (UCSR0B & ( 1 << UCSZ02 )){
+	// Read the 9th bit first
+	rxBuffer.push( (UCSR0B & (1<< RXB80)) >> 1 );
+      }
         unsigned char c = UDR0;
         rxBuffer.push( c );
     }
@@ -102,6 +106,16 @@ ISR( USART_UDRE_vect )
 {
     if ( txBuffer.isNotEmpty() )
     {
+      if (UCSR0B & ( 1 << UCSZ02 )){
+	// Get the 9th bit
+	if( txBuffer.pull() == 0x1 ){
+	  // Set 9th bit
+	  *_ucsrb |= ( 1<<TXB80 );
+	}else{
+	  // clear 9th bit
+	  *_ucsrb &= ~( 1<<TXB80 );
+	}
+      }
         // Send the next byte
         UDR0 = txBuffer.pull();
     }
@@ -133,6 +147,14 @@ void USART0::start( unsigned long baudRate, UsartSerialConfiguration config )
         UCSR0B &= ~( (1<<RXCIE0) | (1<<TXCIE0) | (1<<UDRIE0) | (1<<RXEN0) | (1<<TXEN0)
                         | (1<< UCSZ02) | (1<<TXB80) );
 
+	if ( config & 0x1 ){
+	  // Set 9th data bit
+	  UCSR0B |= 1 << UCSZ02;
+	} else {
+	  // Clear 9th bit in config
+	  config &= ~( 0x1 ) ;
+	}
+	
         // Set data bits, stop bits, and parity
         UCSR0C = static_cast<uint8_t>( config );
 
