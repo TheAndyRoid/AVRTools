@@ -126,7 +126,7 @@ void BitRingBuffer::setBit(unsigned short index, bool bit)
         byte &= ~( 1<< bitShift );
     }
     // write byte
-    mBuffer[index] = byte;
+    mBuffer[index>>3] = byte;
 }
 
 bool BitRingBuffer::getBit(unsigned short index)
