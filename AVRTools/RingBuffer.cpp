@@ -32,6 +32,28 @@ RingBuffer::RingBuffer( unsigned char *buffer, unsigned short size )
 {
 }
 
+bool RingBuffer::pull(uint8_t *dst, uint8_t len)
+{
+    ATOMIC_BLOCK( ATOMIC_RESTORESTATE )
+    {
+        if ( mLength >= len)
+        {
+	  while ( len ){
+            *dst = mBuffer[ mIndex ];
+            mIndex++;
+            if ( mIndex >= mSize )
+            {
+                mIndex -= mSize;
+            }
+            --mLength;
+	    --len;
+	    ++dst;
+	  }
+	  return 0;
+        }
+    }
+    return 1;
+}
 
 int RingBuffer::pull()
 {
@@ -83,24 +105,54 @@ bool RingBuffer::push( unsigned char element )
 }
 
 
-#pragma GCC diagnostic push
-#pragma GCC diagnostic ignored "-Wreturn-type"
-
-bool RingBuffer::isFull()
+bool RingBuffer::push( const uint8_t *src, uint8_t len )
 {
     ATOMIC_BLOCK( ATOMIC_RESTORESTATE )
     {
-        return ( mSize - mLength ) <= 0;
+      if ( (mLength + len - 1) < mSize )
+        {
+	  while(len){
+            mBuffer[ ( mIndex + mLength ) % mSize ] = *src;
+            ++mLength;
+	    --len;
+	    ++src;
+	  }
+	  return 0;
+        }
+    }
+    // If buffer is full, ignore the push()
+    return 1;
+}
+ 
+
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wreturn-type"
+
+bool RingBuffer::isFull(uint8_t len){
+   --len;
+   ATOMIC_BLOCK( ATOMIC_RESTORESTATE )
+    {
+      return ( mSize - mLength ) <= len;
+    }
+}
+
+bool RingBuffer::isFull()
+{
+  return isFull(1);
+}
+
+bool RingBuffer::isNotFull(uint8_t len){
+  --len;
+    ATOMIC_BLOCK( ATOMIC_RESTORESTATE )
+    {
+        return ( mSize - mLength ) > len;
     }
 }
 
 
 bool RingBuffer::isNotFull()
 {
-    ATOMIC_BLOCK( ATOMIC_RESTORESTATE )
-    {
-        return ( mSize - mLength ) > 0;
-    }
+  return isNotFull(1);
 }
 
 #pragma GCC diagnostic pop
@@ -111,6 +163,11 @@ void RingBuffer::clear()
     ATOMIC_BLOCK( ATOMIC_RESTORESTATE )
     {
         mLength = 0;
+	for ( uint8_t i = 0 ; i < mSize; ++i)
+	{
+	    // do a full clear 
+	    mBuffer[i] = 0;
+	}
     }
 }
 

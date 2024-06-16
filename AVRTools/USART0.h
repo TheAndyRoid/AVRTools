@@ -60,10 +60,6 @@
  * if you link against USART0.cpp.
  */
 
-
-
-
-
 #ifndef USART0_h
 #define USART0_h
 
@@ -122,8 +118,6 @@ enum UsartSerialConfiguration
 };
 
 #endif
-
-
 
 
 /*!
@@ -267,6 +261,8 @@ namespace USART0
     int read();
 
 
+    size_t read( char *buffer, size_t length );
+
     /*!
     * \brief Determine if there is data in the receive buffer..
     *
@@ -277,11 +273,6 @@ namespace USART0
     bool available();
   
 };
-
-
-
-
-
 
 
 
@@ -340,7 +331,7 @@ public:
      *
      * \returns the number of bytes written.
      */
-    virtual size_t write( char c );
+    virtual size_t write( char c ) override;
 
     /*!
      * \brief Write a null-terminated string to the output stream.  This implements the pure virtual function
@@ -350,7 +341,7 @@ public:
      *
      * \returns the number of bytes written.
      */
-    virtual size_t write( const char* str );
+    virtual size_t write( const char* str ) override;
 
     /*!
      * \brief Write a given number of characters from a buffer to the output stream.  This implements the pure virtual function
@@ -361,7 +352,7 @@ public:
      *
      * \returns the number of bytes written.
      */
-    virtual size_t write( const char* buffer, size_t size );
+    virtual size_t write( const char* buffer, size_t size ) override;
 
     /*!
      * \brief Write a given number of bytes from a buffer to the output stream.  This implements the pure virtual function
@@ -372,14 +363,14 @@ public:
      *
      * \returns the number of bytes written.
      */
-    virtual size_t write( const uint8_t* buffer, size_t size );
+    virtual size_t write( const uint8_t* buffer, size_t size ) override;
 
     /*!
      * \brief Flush the output stream.  When this function returns, all previously
      * written data will have been transmitted through the underlying output stream.
      * This implements the pure virtual function Writer::flush().
      */
-    virtual void flush();
+    virtual void flush() override;
 
 
 
@@ -392,7 +383,9 @@ public:
      * \returns the next byte, or -1 if there is nothing to read in the input stream
      * before timeout expires.
      */
-    virtual int read();
+    virtual int read() override;
+
+    size_t readBytes( char *buffer, size_t length );
 
 
     /*!
@@ -402,7 +395,7 @@ public:
      * \returns the next byte, or -1 if there is nothing to read in the input stream
      * before timeout expires.
      */
-    virtual int peek();
+    virtual int peek() override;
 
 
     /*!
@@ -411,7 +404,7 @@ public:
      *
      * \returns True if data is available in the stream; false if not.
      */
-    virtual bool available();
+    virtual bool available() override;
 };
 
 

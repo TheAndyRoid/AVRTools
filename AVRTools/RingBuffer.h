@@ -77,6 +77,16 @@ public:
     int pull();
 
     /*!
+     * \brief Extract the next n bytes from the ring buffer.
+     *
+     * \arg \c dst is the address to put first byte from the ring buffer.
+     * \arg \c len is the number of bytes to pull from the ring buffer.
+     *
+     * \returns 0 (false) if it succeeds; 1 (true) if it fails because the buffer does not contain enough bytes
+     */
+    bool pull(uint8_t *dst, uint8_t len);
+
+    /*!
      * \brief Examine an element in the ring buffer.
      *
      * \arg \c index the element to examine; 0 means the first (= next) element in the buffer.
@@ -96,6 +106,16 @@ public:
      */
     bool push( unsigned char element );
 
+     /*!
+     * \brief Push bytes into the ring buffer.  The elements are appended to the back
+     * of the buffer.
+     *
+     * \arg \c src is the address of first byte to append to the ring buffer.
+     * \arg \c len is the number of bytes from src to append to the ring buffer.
+     *
+     * \returns 0 (false) if it succeeds; 1 (true) if it fails because the buffer is full.
+     */
+    bool push( const uint8_t *src, uint8_t len );
 
     /*!
      * \brief Determine if the buffer is full and cannot accept more bytes.
@@ -103,6 +123,7 @@ public:
      * \returns true if the buffer is full; false if not.
      */
     bool isFull();
+    bool isFull(uint8_t len);
 
     /*!
      * \brief Determine if the buffer is not full and can accept more bytes.
@@ -110,6 +131,7 @@ public:
      * \returns true if the buffer is not full; false if it is full.
      */
     bool isNotFull();
+    bool isNotFull(uint8_t len);
 
     /*!
      * \brief Determine if the buffer is empty .

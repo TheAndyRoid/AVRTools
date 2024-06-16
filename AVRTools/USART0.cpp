@@ -21,20 +21,24 @@
     along with this program.  If not, see <http://www.gnu.org/licenses/>.
 */
 
+#include <avr/io.h>
+#include <stdio.h>
+
+#include <util/atomic.h>
+#include <avr/interrupt.h>
+#include <avr/sfr_defs.h>
 
 
 #include "USART0.h"
 
 #include <stdint.h>
 
-#include <avr/io.h>
-#include <util/atomic.h>
 
 #include "RingBuffer.h"
 
 
 #ifndef USART0_RX_BUFFER_SIZE
-#define USART0_RX_BUFFER_SIZE   64
+#define USART0_RX_BUFFER_SIZE   128
 #endif
 
 #ifndef USART0_TX_BUFFER_SIZE
@@ -73,61 +77,56 @@ namespace
 #if defined(__AVR_ATmega2560__)
 ISR( USART0_RX_vect )
 #else
-ISR( USART_RX_vect )
+ISR( USART1_RX_vect )
 #endif
 {
     // If no parity error, put it in the rx buffer
     // Eitherway, we need to read UDR register to clear the interrupt
-    if ( !( UCSR0A & (1<<UPE0) ) )
+    if ( !( UCSR1A & (1<<UPE1) ) )
     {
-      if (UCSR0B & ( 1 << UCSZ02 )){
+      if (UCSR1B & ( 1 << UCSZ12 )){
 	// Read the 9th bit first
-	rxBuffer.push( (UCSR0B & (1<< RXB80)) >> 1 );
+	rxBuffer.push( (UCSR1B & (1<< RXB81)) >> 1 );
       }
-        unsigned char c = UDR0;
+        unsigned char c = UDR1;
         rxBuffer.push( c );
     }
     else
     {
-        unsigned char c = UDR0;
+        unsigned char c = UDR1;
     }
 }
 
 #pragma GCC diagnostic pop
 
 
-
-
 #if defined(__AVR_ATmega2560__)
 ISR( USART0_UDRE_vect )
 #else
-ISR( USART_UDRE_vect )
+ISR( USART1_UDRE_vect )
 #endif
 {
     if ( txBuffer.isNotEmpty() )
     {
-      if (UCSR0B & ( 1 << UCSZ02 )){
+      if (UCSR1B & ( 1 << UCSZ12 )){
 	// Get the 9th bit
 	if( txBuffer.pull() == 0x1 ){
 	  // Set 9th bit
-	  *_ucsrb |= ( 1<<TXB80 );
+	  UCSR1B |= ( 1<<TXB81 );
 	}else{
 	  // clear 9th bit
-	  *_ucsrb &= ~( 1<<TXB80 );
+	  UCSR1B &= ~( 1<<TXB81 );
 	}
       }
         // Send the next byte
-        UDR0 = txBuffer.pull();
+        UDR1 = txBuffer.pull();
     }
     else
     {
         // Nothing more to transmit so disable UDRE interrupts
-        UCSR0B &= ~( 1 << UDRIE0 );
+        UCSR1B &= ~( 1 << UDRIE1 );
     }
 }
-
-
-
 
 
 void USART0::start( unsigned long baudRate, UsartSerialConfiguration config )
@@ -143,41 +142,42 @@ void USART0::start( unsigned long baudRate, UsartSerialConfiguration config )
     ATOMIC_BLOCK( ATOMIC_RESTORESTATE )
     {
         // Asynchronous mode, with everything else off
-        UCSR0A &= ~( (1<<U2X0) | (1<<MPCM0) );
-        UCSR0B &= ~( (1<<RXCIE0) | (1<<TXCIE0) | (1<<UDRIE0) | (1<<RXEN0) | (1<<TXEN0)
-                        | (1<< UCSZ02) | (1<<TXB80) );
+        UCSR1A &= ~( (1<<U2X1) | (1<<MPCM1) );
+        UCSR1B &= ~( (1<<RXCIE1) | (1<<TXCIE1) | (1<<UDRIE1) | (1<<RXEN1) | (1<<TXEN1)
+                        | (1<< UCSZ12) | (1<<TXB81) );
 
+	uint8_t _config = config;
 	if ( config & 0x1 ){
 	  // Set 9th data bit
-	  UCSR0B |= 1 << UCSZ02;
+	  UCSR1B |= 1 << UCSZ12;
 	} else {
 	  // Clear 9th bit in config
-	  config &= ~( 0x1 ) ;
+	  _config  &= ~( 0x1 );
 	}
 	
+	
         // Set data bits, stop bits, and parity
-        UCSR0C = static_cast<uint8_t>( config );
+        UCSR1C =  _config;
 
         // Set baud rate
-        UBRR0H = baudSetting >> 8;
-        UBRR0L = baudSetting;
+        UBRR1H = baudSetting >> 8;
+        UBRR1L = baudSetting;
         if ( use2x )
         {
-            UCSR0A |= ( 1 << U2X0 );
+            UCSR1A |= ( 1 << U2X1 );
         }
         else
         {
-            UCSR0A &= ~( 1 << U2X0 );
+            UCSR1A &= ~( 1 << U2X1 );
         }
 
         // Turn on TX and RX
-        UCSR0B |= ( 1 << RXEN0 ) | ( 1 << TXEN0 );
+        UCSR1B |= ( 1 << RXEN1 ) | ( 1 << TXEN1 );
 
         // Configure interrupts
-        UCSR0B |= ( 1 << RXCIE0 ) | ( 1 << UDRIE0 );
+        UCSR1B |= ( 1 << RXCIE1 ) | ( 1 << UDRIE1 );
     }
 }
-
 
 
 void USART0::stop()
@@ -185,7 +185,7 @@ void USART0::stop()
     flush();
 
     // Turn off TX, RX, and interrupts
-    UCSR0B &= ~( (1<<RXCIE0) | (1<<TXCIE0) | (1<<UDRIE0) | (1<<RXEN0) | (1<<TXEN0) );
+    UCSR1B &= ~( (1<<RXCIE1) | (1<<TXCIE1) | (1<<UDRIE1) | (1<<RXEN1) | (1<<TXEN1) );
 
     // Clear the receive buffer
     rxBuffer.clear();
@@ -197,28 +197,26 @@ void USART0::flush()
 {
   // UDRE interrupt keeps transmitting until transmit buffer is empty.
   // Just wait for the bit that tells us transmission done and nothing else to send (UDR empty).
-  while ( txBuffer.isNotEmpty() && !( UCSR0A & (1<<TXC0) ) )
+  while ( txBuffer.isNotEmpty() && !( UCSR1A & (1<<TXC1) ) )
       ;
 
   // Clear TXCO by writing a 1 (not a typo)
-  UCSR0A |= ( 1 << TXC0 );
+  UCSR1A |= ( 1 << TXC1 );
 }
-
-
 
 int USART0::peek()
 {
     return rxBuffer.peek();
 }
 
-
+size_t USART0::read( char *buffer, size_t length ){
+    return rxBuffer.pull(reinterpret_cast<uint8_t*>(buffer), length);
+}
 
 int USART0::read()
 {
     return rxBuffer.pull();
 }
-
-
 
 size_t USART0::write( char c )
 {
@@ -228,15 +226,13 @@ size_t USART0::write( char c )
     txBuffer.push( static_cast<unsigned char>( c ) );
 
     // Set UDRE interrupt
-    UCSR0B |= ( 1 << UDRIE0 );
+    UCSR1B |= ( 1 << UDRIE1 );
 
     // Clear TXC flag by writing a 1 (*not* a typo)
-    UCSR0A |= ( 1 << TXC0 );
+    UCSR1A |= ( 1 << TXC1 );
 
     return 1;
 }
-
-
 
 size_t USART0::write( const char* c )
 {
@@ -253,62 +249,45 @@ size_t USART0::write( const char* c )
             ++cnt;
 
             // Set UDRE interrupt (each time in case interrupt fires and clears in between)
-            UCSR0B |= ( 1 << UDRIE0 );
+            UCSR1B |= ( 1 << UDRIE1 );
         }
 
         // Clear TXC flag by writing a 1 (*not* a typo); suffices to do this at the end
-        UCSR0A |= ( 1 << TXC0 );
+        UCSR1A |= ( 1 << TXC1 );
     }
 
     return cnt;
 }
-
-
-
 
 size_t USART0::write( const char* c, size_t n )
 {
     return write( reinterpret_cast< const uint8_t*>( c ) , n );
 }
 
-
-
-
 size_t USART0::write( const uint8_t* c, size_t n )
 {
-    size_t cnt = 0;
     if ( c )
     {
-        while ( n-- )
-        {
-            // If buffer is full, wait...
-            while ( txBuffer.isFull() )
-                ;
+        // If buffer is full, wait...
+        while ( txBuffer.isFull(n) )
+	  ;
+	    
+        txBuffer.push( c, n );
 
-            txBuffer.push( *c++ );
-            ++cnt;
-
-            // Set UDRE interrupt (each time in case interrupt fires and clears in between)
-            UCSR0B |= ( 1 << UDRIE0 );
-        }
+        // Set UDRE interrupt (each time in case interrupt fires and clears in between)
+        UCSR1B |= ( 1 << UDRIE1 );
 
         // Clear TXC flag by writing a 1 (*not* a typo); suffices to do this at the end
-        UCSR0A |= ( 1 << TXC0 );
+        UCSR1A |= ( 1 << TXC1 );
     }
 
-    return cnt;
+    return n;
 }
-
-
-
 
 bool USART0::available()
 {
     return !rxBuffer.isEmpty();
 }
-
-
-
 
 
 
@@ -333,7 +312,6 @@ size_t Serial0::write( const uint8_t* buffer, size_t size )
     return USART0::write( buffer, size );
 }
 
-
 void Serial0::flush()
 {
     USART0::flush();
@@ -344,11 +322,15 @@ int Serial0::read()
     return USART0::read();
 }
 
+size_t Serial0::readBytes( char *buffer, size_t length )
+{
+    return USART0::read(buffer, length);
+}
+
 int Serial0::peek()
 {
     return USART0::peek();
 }
-
 
 bool Serial0::available()
 {
