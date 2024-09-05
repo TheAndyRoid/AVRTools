@@ -22,7 +22,11 @@
 */
 
 
-#if !defined(__AVR_ATmega2560__)
+#if defined(__AVR_ATmega2560__)
+
+#elif defined(__AVR_ATmega32U4__)
+
+#else
 #error "USART1 doesn't exist on ATMega328p (Arduino Uno); you can only use this on ATMega2560 (Arduino Mega)."
 #endif
 
@@ -100,26 +104,32 @@ enum UsartSerialConfiguration
     kSerial_6N1 = 0x02,     //!< 6 data bits, no parity, 1 stop bit  \hideinitializer
     kSerial_7N1 = 0x04,     //!< 7 data bits, no parity, 1 stop bit  \hideinitializer
     kSerial_8N1 = 0x06,     //!< 8 data bits, no parity, 1 stop bit  \hideinitializer
+    kSerial_9N1 = 0x07,     //!< 9 data bits, no parity, 1 stop bit  \hideinitializer
     kSerial_5N2 = 0x08,     //!< 5 data bits, no parity, 2 stop bits  \hideinitializer
     kSerial_6N2 = 0x0A,     //!< 6 data bits, no parity, 2 stop bits  \hideinitializer
     kSerial_7N2 = 0x0C,     //!< 7 data bits, no parity, 2 stop bits  \hideinitializer
     kSerial_8N2 = 0x0E,     //!< 8 data bits, no parity, 2 stop bits  \hideinitializer
+    kSerial_9N2 = 0x0F,     //!< 9 data bits, no parity, 2 stop bits  \hideinitializer
     kSerial_5E1 = 0x20,     //!< 5 data bits, even parity, 1 stop bit  \hideinitializer
     kSerial_6E1 = 0x22,     //!< 6 data bits, even parity, 1 stop bit  \hideinitializer
     kSerial_7E1 = 0x24,     //!< 7 data bits, even parity, 1 stop bit  \hideinitializer
     kSerial_8E1 = 0x26,     //!< 8 data bits, even parity, 1 stop bit  \hideinitializer
+    kSerial_9E1 = 0x27,     //!< 9 data bits, even parity, 1 stop bit  \hideinitializer
     kSerial_5E2 = 0x28,     //!< 5 data bits, even parity, 2 stop bits  \hideinitializer
     kSerial_6E2 = 0x2A,     //!< 6 data bits, even parity, 2 stop bits  \hideinitializer
     kSerial_7E2 = 0x2C,     //!< 7 data bits, even parity, 2 stop bits  \hideinitializer
     kSerial_8E2 = 0x2E,     //!< 8 data bits, even parity, 2 stop bits  \hideinitializer
+    kSerial_9E2 = 0x2F,     //!< 9 data bits, even parity, 2 stop bits  \hideinitializer
     kSerial_5O1 = 0x30,     //!< 5 data bits, odd parity, 1 stop bit  \hideinitializer
     kSerial_6O1 = 0x32,     //!< 6 data bits, odd parity, 1 stop bit  \hideinitializer
     kSerial_7O1 = 0x34,     //!< 7 data bits, odd parity, 1 stop bit  \hideinitializer
     kSerial_8O1 = 0x36,     //!< 8 data bits, odd parity, 1 stop bit  \hideinitializer
+    kSerial_9O1 = 0x37,     //!< 9 data bits, odd parity, 1 stop bit  \hideinitializer
     kSerial_5O2 = 0x38,     //!< 5 data bits, odd parity, 2 stop bits  \hideinitializer
     kSerial_6O2 = 0x3A,     //!< 6 data bits, odd parity, 2 stop bits  \hideinitializer
     kSerial_7O2 = 0x3C,     //!< 7 data bits, odd parity, 2 stop bits  \hideinitializer
-    kSerial_8O2 = 0x3E      //!< 8 data bits, odd parity, 2 stop bits  \hideinitializer
+    kSerial_8O2 = 0x3E,     //!< 8 data bits, odd parity, 2 stop bits  \hideinitializer
+    kSerial_9O2 = 0x3F      //!< 9 data bits, odd parity, 2 stop bits  \hideinitializer
 };
 
 #endif
@@ -266,6 +276,8 @@ namespace USART1
     */
 
     int read();
+  
+    size_t read( char *buffer, size_t length );
 
 
     /*!
@@ -332,9 +344,6 @@ public:
     { USART1::stop(); }
 
 
-
-
-
     /*!
      * \brief Write a single character to the output stream.  This implements the pure virtual function
      * Writer::write( char c ).
@@ -396,7 +405,8 @@ public:
      * before timeout expires.
      */
     virtual int read();
-
+  
+    size_t readBytes( char *buffer, size_t length );
 
     /*!
      * \brief Examine the next byte from the input stream, without removing it.  This implements the pure

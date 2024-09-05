@@ -21,9 +21,12 @@
     along with this program.  If not, see <http://www.gnu.org/licenses/>.
 */
 
+#if defined(__AVR_ATmega2560__)
 
-#if !defined(__AVR_ATmega2560__)
-#error "USART1 doesn't exist on ATmega328p (Arduino Uno); you can only use this on ATmega2560 (Arduino Mega)."
+#elif defined(__AVR_ATmega32U4__)
+
+#else
+#error "USART1 doesn't exist on ATMega328p (Arduino Uno); you can only use this on ATMega2560 (Arduino Mega)."
 #endif
 
 
@@ -66,6 +69,7 @@ namespace
     unsigned char txStorage[ USART1_TX_BUFFER_SIZE ];
     RingBuffer txBuffer( txStorage, USART1_TX_BUFFER_SIZE );
 
+    inline bool is9Bit(){ return  UCSR1B & ( 1 << UCSZ12 ); }
 };
 
 
@@ -78,17 +82,22 @@ ISR( USART1_RX_vect )
 {
     // If no parity error, put it in the rx buffer
     // Eitherway, we need to read UDR register to clear the interrupt
+    uint8_t data[2];
     if ( !( UCSR1A & (1<<UPE1) ) )
     {
-        unsigned char c = UDR1;
-        rxBuffer.push( c );
+      bool nine_bits = is9Bit();
+      if ( nine_bits ){
+	// Read the 9th bit first
+	  data[0] = (UCSR1B & (1<< RXB81)) >> 1;
+      }
+      data[1] = UDR1;
+      rxBuffer.push( data+nine_bits, (nine_bits)?2:1 );
     }
     else
     {
         unsigned char c = UDR1;
     }
 }
-
 #pragma GCC diagnostic pop
 
 
@@ -97,8 +106,23 @@ ISR( USART1_UDRE_vect )
 {
     if ( txBuffer.isNotEmpty() )
     {
-        // Send the next byte
-        UDR1 = txBuffer.pull();
+      uint8_t data[2];
+      bool nine_bits = is9Bit();
+      if ( nine_bits ){
+	txBuffer.pull(data, 2);
+	// Get the 9th bit
+	if( data[0] ){
+	  // Set 9th bit
+	  UCSR1B |= ( 1<<TXB81 );
+	}else{
+	  // clear 9th bit
+	  UCSR1B &= ~( 1<<TXB81 );
+	}
+	// Send the remaining 8 bits
+	UDR1 = data[1];
+      }else{
+	UDR1 = txBuffer.pull();
+      }
     }
     else
     {
@@ -106,7 +130,6 @@ ISR( USART1_UDRE_vect )
         UCSR1B &= ~( 1 << UDRIE1 );
     }
 }
-
 
 
 
@@ -128,8 +151,17 @@ void USART1::start( unsigned long baudRate, UsartSerialConfiguration config )
         UCSR1B &= ~( (1<<RXCIE1) | (1<<TXCIE1) | (1<<UDRIE1) | (1<<RXEN1) | (1<<TXEN1)
                         | (1<< UCSZ12) | (1<<TXB81) );
 
+	uint8_t _config = config;
+	if ( config & 0x1 ){
+	  // Set 9th data bit
+	  UCSR1B |= 1 << UCSZ12;
+	} else {
+	  // Clear 9th bit in config
+	  _config  &= ~( 0x1 );
+	}
+
         // Set data bits, stop bits, and parity
-        UCSR1C = static_cast<uint8_t>( config );
+        UCSR1C =  _config;
 
         // Set baud rate
         UBRR1H = baudSetting >> 8;
@@ -249,42 +281,29 @@ size_t USART1::write( const char* c, size_t n )
 
 size_t USART1::write( const uint8_t* c, size_t n )
 {
-    size_t cnt = 0;
     if ( c )
     {
-        while ( n-- )
-        {
-            // If buffer is full, wait...
-            while ( txBuffer.isFull() )
-                ;
+        // If buffer is full, wait...
+        while ( txBuffer.isFull(n) )
+	  ;
 
-            txBuffer.push( *c++ );
-            ++cnt;
+	// Push full contents at once
+        txBuffer.push( c, n );
 
-            // Set UDRE interrupt (each time in case interrupt fires and clears in between)
-            UCSR1B |= ( 1 << UDRIE1 );
-        }
+        // Set UDRE interrupt (each time in case interrupt fires and clears in between)
+        UCSR1B |= ( 1 << UDRIE1 );
 
         // Clear TXC flag by writing a 1 (*not* a typo); suffices to do this at the end
         UCSR1A |= ( 1 << TXC1 );
     }
 
-    return cnt;
+    return n;
 }
-
-
-
 
 bool USART1::available()
 {
     return !rxBuffer.isEmpty();
 }
-
-
-
-
-
-
 
 size_t Serial1::write( char c )
 {
@@ -306,7 +325,6 @@ size_t Serial1::write( const uint8_t* buffer, size_t size )
     return USART1::write( buffer, size );
 }
 
-
 void Serial1::flush()
 {
     USART1::flush();
@@ -317,11 +335,15 @@ int Serial1::read()
     return USART1::read();
 }
 
+size_t Serial1::readBytes( char *buffer, size_t length )
+{
+    return USART1::read(buffer, length);
+}
+
 int Serial1::peek()
 {
     return USART1::peek();
 }
-
 
 bool Serial1::available()
 {
